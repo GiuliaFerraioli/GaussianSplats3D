@@ -322,9 +322,6 @@ export class Viewer {
         this.sceneHelper.setupMeshCursor();
         this.sceneHelper.setupFocusMarker();
         this.sceneHelper.setupControlPlane();
-        this.player = new THREE.Group();
-        this.threeScene.add(this.player);
-
 
         this.setupCamera();
         this.setupRenderer();
@@ -351,7 +348,6 @@ export class Viewer {
             this.camera.position.copy(this.initialCameraPosition);
             this.camera.up.copy(this.cameraUp).normalize();
             this.camera.lookAt(this.initialCameraLookAt);
-            this.player.add(this.camera);
         }
     }
 
@@ -393,6 +389,10 @@ export class Viewer {
 
             this.renderer.xr.enabled = true;
 
+            this.player = new THREE.Group();
+            this.threeScene.add(this.player);
+
+
             // Reset camera
             this.camera.position.copy(this.initialCameraPosition);
             this.camera.up.copy(this.cameraUp).normalize();
@@ -414,35 +414,26 @@ export class Viewer {
         const session = this.renderer.xr.getSession();
         if (!session) return;
 
-        const speed = 1.5; // meters/sec
+        const speed = 1.5;
 
         for (const inputSource of session.inputSources) {
             if (!inputSource.gamepad) continue;
-
             const gp = inputSource.gamepad;
             const axes = gp.axes;
             if (!axes || axes.length < 2) continue;
 
-            // Forward/backward along camera direction
             const forward = new THREE.Vector3();
             this.camera.getWorldDirection(forward);
             forward.y = 0;
             forward.normalize();
 
-            // Right vector
             const right = new THREE.Vector3();
             right.crossVectors(this.camera.up, forward).normalize();
 
-            // Apply movement
             this.player.position.add(forward.multiplyScalar(-axes[1] * speed * delta));
             this.player.position.add(right.multiplyScalar(axes[0] * speed * delta));
         }
     }
-
-
-
-
-
 
     setupControls() {
         if (this.useBuiltInControls && this.webXRMode === WebXRMode.None) {
@@ -737,6 +728,9 @@ export class Viewer {
             const xrCameraProj00 = xrCamera.projectionMatrix.elements[0];
             const cameraProj00 = this.camera.projectionMatrix.elements[0];
             renderDimensions.x *= (cameraProj00 / xrCameraProj00);
+
+            // Put XR camera under player rig
+            this.player.add(xrCamera);
         }
     }
 
