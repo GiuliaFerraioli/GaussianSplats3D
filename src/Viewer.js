@@ -392,7 +392,7 @@ export class Viewer {
             this.player = new THREE.Group();
             this.threeScene.add(this.player);
 
-
+            this.player.add(this.camera);
             // Reset camera
             this.camera.position.copy(this.initialCameraPosition);
             this.camera.up.copy(this.cameraUp).normalize();
@@ -418,20 +418,38 @@ export class Viewer {
 
         for (const inputSource of session.inputSources) {
             if (!inputSource.gamepad) continue;
+
             const gp = inputSource.gamepad;
             const axes = gp.axes;
-            if (!axes || axes.length < 2) continue;
+            console.log('Controller axes:', axes);
+
+            if (!axes || axes.length < 4) continue;
+
+            const xAxis = axes[2];
+            const yAxis = axes[3];
+
+            if (Math.abs(xAxis) < 0.1 && Math.abs(yAxis) < 0.1) continue;
+
+            const xrCamera = this.renderer.xr.getCamera();
 
             const forward = new THREE.Vector3();
-            this.camera.getWorldDirection(forward);
+            xrCamera.getWorldDirection(forward);
             forward.y = 0;
             forward.normalize();
 
             const right = new THREE.Vector3();
-            right.crossVectors(this.camera.up, forward).normalize();
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-            this.player.position.add(forward.multiplyScalar(-axes[1] * speed * delta));
-            this.player.position.add(right.multiplyScalar(axes[0] * speed * delta));
+            const movement = new THREE.Vector3();
+            movement.add(forward.clone().multiplyScalar(-yAxis * speed * delta));
+            movement.add(right.clone().multiplyScalar(xAxis * speed * delta));
+
+            this.player.position.add(movement);
+
+            console.log('Moving player by:', movement);
+            console.log('Player position:', this.player.position);
+
+            break;
         }
     }
 
@@ -722,15 +740,16 @@ export class Viewer {
     }();
 
     adjustForWebXRStereo(renderDimensions) {
-        // TODO: Figure out a less hacky way to determine if stereo rendering is active
         if (this.camera && this.webXRActive) {
             const xrCamera = this.renderer.xr.getCamera();
             const xrCameraProj00 = xrCamera.projectionMatrix.elements[0];
             const cameraProj00 = this.camera.projectionMatrix.elements[0];
             renderDimensions.x *= (cameraProj00 / xrCameraProj00);
 
-            // Put XR camera under player rig
-            this.player.add(xrCamera);
+            // Only add XR camera to player if it's not already a child
+            if (xrCamera.parent !== this.player) {
+                this.player.add(xrCamera);
+            }
         }
     }
 
