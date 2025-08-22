@@ -409,47 +409,97 @@ export class Viewer {
     }
 
 
-
     updateVRControllers(delta) {
         const session = this.renderer.xr.getSession();
         if (!session) return;
 
         const speed = 1.5;
+        const rotationSpeed = 1.0;
 
-        for (const inputSource of session.inputSources) {
+
+        let leftController = null;
+        let rightController = null;
+
+        for (let i = 0; i < session.inputSources.length; i++) {
+            const inputSource = session.inputSources[i];
+
             if (!inputSource.gamepad) continue;
 
-            const gp = inputSource.gamepad;
-            const axes = gp.axes;
-            console.log('Controller axes:', axes);
+            if (inputSource.handedness === 'left') {
+                leftController = inputSource.gamepad;
+            } else if (inputSource.handedness === 'right') {
+                rightController = inputSource.gamepad;
+            }
+        }
 
-            if (!axes || axes.length < 4) continue;
+        if (leftController && leftController.axes && leftController.axes.length >= 4) {
+            const moveX = leftController.axes[2];
+            const moveY = leftController.axes[3];
 
-            const xAxis = axes[2];
-            const yAxis = axes[3];
 
-            if (Math.abs(xAxis) < 0.1 && Math.abs(yAxis) < 0.1) continue;
+            if (Math.abs(moveX) > 0.1 || Math.abs(moveY) > 0.1) {
+                const xrCamera = this.renderer.xr.getCamera();
 
-            const xrCamera = this.renderer.xr.getCamera();
+                const forward = new THREE.Vector3();
+                xrCamera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
 
-            const forward = new THREE.Vector3();
-            xrCamera.getWorldDirection(forward);
-            forward.y = 0;
-            forward.normalize();
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-            const right = new THREE.Vector3();
-            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+                const movement = new THREE.Vector3();
+                movement.add(forward.clone().multiplyScalar(-moveY * speed * delta));
+                movement.add(right.clone().multiplyScalar(moveX * speed * delta));
 
-            const movement = new THREE.Vector3();
-            movement.add(forward.clone().multiplyScalar(-yAxis * speed * delta));
-            movement.add(right.clone().multiplyScalar(xAxis * speed * delta));
+                this.player.position.add(movement);
+            }
+        }
 
-            this.player.position.add(movement);
+        if (rightController && rightController.axes) {
 
-            console.log('Moving player by:', movement);
-            console.log('Player position:', this.player.position);
 
-            break;
+            let rotateX = 0;
+
+            if (rightController.axes.length >= 3 && Math.abs(rightController.axes[2]) > 0.1) {
+                rotateX = rightController.axes[2];
+            }
+            else if (rightController.axes.length >= 1 && Math.abs(rightController.axes[0]) > 0.1) {
+                rotateX = rightController.axes[0];
+            }
+
+            if (Math.abs(rotateX) > 0.1) {
+                this.player.rotateY(-rotateX * rotationSpeed * delta);
+            }
+        }
+
+        // If we don't have separate left/right, fall back to any controller
+        if (!leftController && !rightController && session.inputSources.length > 0) {
+            const inputSource = session.inputSources[0];
+            if (inputSource.gamepad && inputSource.gamepad.axes && inputSource.gamepad.axes.length >= 4) {
+
+                const axes = inputSource.gamepad.axes;
+                const moveX = axes[2];
+                const moveY = axes[3];
+
+                if (Math.abs(moveX) > 0.1 || Math.abs(moveY) > 0.1) {
+                    const xrCamera = this.renderer.xr.getCamera();
+
+                    const forward = new THREE.Vector3();
+                    xrCamera.getWorldDirection(forward);
+                    forward.y = 0;
+                    forward.normalize();
+
+                    const right = new THREE.Vector3();
+                    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+                    const movement = new THREE.Vector3();
+                    movement.add(forward.clone().multiplyScalar(-moveY * speed * delta));
+                    movement.add(right.clone().multiplyScalar(moveX * speed * delta));
+
+                    this.player.position.add(movement);
+                }
+            }
         }
     }
 
